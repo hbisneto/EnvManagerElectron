@@ -1,6 +1,7 @@
 const select = document.getElementById('pythonSelect');
 const btn = document.getElementById('createBtn');
 const progress = document.getElementById('progressBar');
+const progressDiv = document.getElementById('progressBarDiv');
 const status = document.getElementById('status');
 
 async function carregarPythons() {
@@ -19,6 +20,7 @@ async function carregarPythons() {
 btn.onclick = () => {
     const python = select.value;
     const nome = document.getElementById('venvName').value;
+    progressDiv.style.height = '10px';
 
     if (!nome) {
         status.textContent = 'Digite um nome para a venv';
@@ -40,6 +42,13 @@ window.api.onDone((ok) => {
         status.textContent = 'Venv criada com sucesso!';
         progress.classList.remove('bg-danger');
         progress.classList.add('bg-success');
+        
+        // set height to 0px after 1 second
+        setTimeout(() => {
+            progressDiv.style.height = '0px';
+            progress.style.width = '0%';
+            progress.classList.remove('bg-success');
+        }, 1000);
     } else {
         status.textContent = 'Erro ao criar a venv';
         progress.classList.add('bg-danger');
