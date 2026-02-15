@@ -4,6 +4,42 @@ const progress = document.getElementById('progressBar');
 const progressDiv = document.getElementById('progressBarDiv');
 const status = document.getElementById('status');
 
+const projectLocationInput = document.getElementById('projectLocation');
+const projectLocationBtn = document.getElementById('projectLocationBtn');
+const projectNameInput = document.getElementById('projectName');
+const summaryText = document.getElementById('summaryDiv');
+
+function atualizarResumo() {
+    const base = projectLocationInput.value;
+    const nome = projectNameInput.value;
+
+    if (!base || !nome) return;
+
+    // normaliza barras
+    let caminho = base;
+    if (!caminho.endsWith('/') && !caminho.endsWith('\\')) {
+        caminho += '/';
+    }
+
+    const finalPath = caminho + nome;
+
+    summaryText.innerHTML =
+        `<small class="text-body-secondary">Project will be created in "${finalPath}"</small>`;
+}
+
+// botão de selecionar pasta
+projectLocationBtn.onclick = async () => {
+    const pasta = await window.api.selecionarPastaProjeto();
+    if (pasta) {
+        projectLocationInput.value = pasta;
+        atualizarResumo();
+    }
+};
+
+// atualizar resumo ao digitar
+projectNameInput.addEventListener('input', atualizarResumo);
+projectLocationInput.addEventListener('input', atualizarResumo);
+
 async function carregarPythons() {
     const lista = await window.api.getPythons();
 
@@ -17,21 +53,46 @@ async function carregarPythons() {
     });
 }
 
+// btn.onclick = () => {
+//     const python = select.value;
+//     const nome = document.getElementById('venvName').value;
+//     progressDiv.style.height = '10px';
+
+//     if (!nome) {
+//         status.textContent = 'Digite um nome para a venv';
+//         return;
+//     }
+
+//     progress.style.width = '10%';
+//     status.textContent = 'Criando ambiente virtual...';
+
+//     window.api.criarVenv({ python, nome });
+// };
+
 btn.onclick = () => {
     const python = select.value;
-    const nome = document.getElementById('venvName').value;
+    const nomeVenv = document.getElementById('venvName').value;
+    const projectName = document.getElementById('projectName').value;
+    const projectLocation = document.getElementById('projectLocation').value;
+
     progressDiv.style.height = '10px';
 
-    if (!nome) {
-        status.textContent = 'Digite um nome para a venv';
+    if (!nomeVenv || !projectName || !projectLocation) {
+        status.textContent = 'Preencha todos os campos';
         return;
     }
 
     progress.style.width = '10%';
-    status.textContent = 'Criando ambiente virtual...';
+    status.textContent = 'Criando projeto...';
 
-    window.api.criarVenv({ python, nome });
+    window.api.criarVenv({
+        python,
+        nomeVenv,
+        projectName,
+        projectLocation
+    });
 };
+
 
 window.api.onProgress((value) => {
     progress.style.width = value + '%';

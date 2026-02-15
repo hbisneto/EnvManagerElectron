@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { exec, spawn } = require('child_process');
+const { dialog } = require('electron');
+const fs = require('fs');
+
 
 // evita erros gráficos
 app.disableHardwareAcceleration();
@@ -9,8 +12,8 @@ let win;
 
 function createWindow() {
     win = new BrowserWindow({
-        width: 500,
-        height: 420,
+        width: 800,
+        height: 600,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js')
         }
@@ -52,6 +55,13 @@ function verificarComando(cmd) {
             }
 
             const versao = (stdout || stderr).trim();
+
+            // filters only for Python 3 versions
+            if (!versao.startsWith('Python 3')) {
+                console.log(`Ignorado (não é Python 3): ${versao}`);
+                return resolve(null);
+            }
+
             console.log(`Encontrado: ${cmd} → ${versao}`);
 
             resolve({ comando: cmd, versao });
@@ -66,46 +76,128 @@ async function detectarPythons() {
     );
 
     const lista = resultados.filter(Boolean);
-    console.log('Pythons detectados:', lista);
+    // remove duplicatas pela versão
+    const unicos = [];
+    const versoes = new Set();
 
-    return lista;
+    for (const py of lista) {
+        if (!versoes.has(py.versao)) {
+            versoes.add(py.versao);
+            unicos.push(py);
+        }
+    }
+
+    console.log('Pythons detectados:', unicos);
+    return unicos;
+    // console.log('Pythons detectados:', lista);
+    // return lista;
 }
 
 ipcMain.handle('get-pythons', async () => {
     return await detectarPythons();
 });
 
-ipcMain.on('criar-venv', (event, { python, nome }) => {
-    console.log(`Criando venv: ${nome} com ${python}`);
+// ipcMain.on('criar-venv', (event, { python, nome }) => {
+//     console.log(`Criando venv: ${nome} com ${python}`);
 
-    const partes = python.split(' ');
-    const cmd = partes[0];
-    const args = partes.slice(1);
+//     const partes = python.split(' ');
+//     const cmd = partes[0];
+//     const args = partes.slice(1);
 
-    const processo = spawn(cmd, [...args, '-m', 'venv', nome]);
+//     const processo = spawn(cmd, [...args, '-m', 'venv', nome]);
 
-    processo.stdout.on('data', (data) => {
-        console.log('[PYTHON]', data.toString());
-        event.sender.send('venv-progress', 50);
-    });
+//     processo.stdout.on('data', (data) => {
+//         console.log('[PYTHON]', data.toString());
+//         event.sender.send('venv-progress', 50);
+//     });
 
-    processo.stderr.on('data', (data) => {
-        console.error('[PYTHON ERROR]', data.toString());
-    });
+//     processo.stderr.on('data', (data) => {
+//         console.error('[PYTHON ERROR]', data.toString());
+//     });
 
-    processo.on('error', (err) => {
-        console.error('Erro ao iniciar processo:', err);
-        event.sender.send('venv-done', false);
-    });
+//     processo.on('error', (err) => {
+//         console.error('Erro ao iniciar processo:', err);
+//         event.sender.send('venv-done', false);
+//     });
 
-    processo.on('close', (code) => {
-        console.log('Processo finalizado com código:', code);
+//     processo.on('close', (code) => {
+//         console.log('Processo finalizado com código:', code);
 
-        if (code === 0) {
-            event.sender.send('venv-progress', 100);
-            event.sender.send('venv-done', true);
-        } else {
-            event.sender.send('venv-done', false);
+//         if (code === 0) {
+//             event.sender.send('venv-progress', 100);
+//             event.sender.send('venv-done', true);
+//         } else {
+//             event.sender.send('venv-done', false);
+//         }
+//     });
+// });
+
+ipcMain.on('criar-venv', (event, dados) => {
+    const { python, nomeVenv, projectName, projectLocation } = dados;
+
+    const projectPath = path.join(projectLocation, projectName);
+
+    console.log('Projeto será criado em:', projectPath);
+
+    try {
+        // cria a pasta do projeto se não existir
+        if (!fs.existsSync(projectPath)) {
+            console.log('Criando pasta do projeto...');
+            fs.mkdirSync(projectPath, { recursive: true });
         }
+
+        event.sender.send('venv-progress', 20);
+
+        const partes = python.split(' ');
+        const cmd = partes[0];
+        const args = partes.slice(1);
+
+        console.log(`Criando venv: ${nomeVenv} com ${python}`);
+
+        // cria a venv dentro da pasta do projeto
+        const processo = spawn(
+            cmd,
+            [...args, '-m', 'venv', nomeVenv],
+            { cwd: projectPath } // executa dentro da pasta do projeto
+        );
+
+        processo.stdout.on('data', (data) => {
+            console.log('[PYTHON]', data.toString());
+            event.sender.send('venv-progress', 60);
+        });
+
+        processo.stderr.on('data', (data) => {
+            console.error('[PYTHON ERROR]', data.toString());
+        });
+
+        processo.on('error', (err) => {
+            console.error('Erro ao iniciar processo:', err);
+            event.sender.send('venv-done', false);
+        });
+
+        processo.on('close', (code) => {
+            console.log('Processo finalizado com código:', code);
+
+            if (code === 0) {
+                event.sender.send('venv-progress', 100);
+                event.sender.send('venv-done', true);
+            } else {
+                event.sender.send('venv-done', false);
+            }
+        });
+
+    } catch (err) {
+        console.error('Erro ao criar pasta do projeto:', err);
+        event.sender.send('venv-done', false);
+    }
+});
+
+
+ipcMain.handle('select-project-folder', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
     });
+
+    if (result.canceled) return null;
+    return result.filePaths[0];
 });
