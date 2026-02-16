@@ -89,7 +89,7 @@ ipcMain.handle('get-pythons', async () => {
 });
 
 ipcMain.on('criar-venv', (event, dados) => {
-    const { python, nomeVenv, projectName, projectLocation, createGitignore, requirementsPath } = dados;
+    const { python, nomeVenv, projectName, projectLocation, createGitignore } = dados;
 
     const projectPath = path.join(projectLocation, projectName);
 

@@ -55,7 +55,7 @@ btn.onclick = () => {
     const projectName = document.getElementById('projectName').value;
     const projectLocation = document.getElementById('projectLocation').value;
     const createGitignore = document.getElementById('switchCheckDefault').checked;
-    const requirementsPath = requirementsInput.value;
+    // const requirementsPath = requirementsInput.value;
 
 
     progressDiv.style.height = '10px';
@@ -74,7 +74,7 @@ btn.onclick = () => {
         projectName,
         projectLocation,
         createGitignore,
-        requirementsPath
+        // requirementsPath
     });
 };
 
