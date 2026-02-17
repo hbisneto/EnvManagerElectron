@@ -5,7 +5,36 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "build": "electron-builder",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "build": {
+    "appId": "com.bisnetodev.envmanager",
+    "productName": "EnvManager",
+    "icon": "icon.png",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "icon.icns"
+    },
+    "linux": {
+      "target": ["AppImage"]
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "renderer/**/*"
+    ]
   },
   "keywords": [],
   "author": "",

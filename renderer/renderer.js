@@ -41,7 +41,6 @@ requirementsBtn.onclick = async () => {
     if (file) {
         requirementsInput.value = file;
 
-        // Contar pacotes para summary
         const response = await fetch(`file://${file}`);
         const text = await response.text();
         const packages = text.split('\n')

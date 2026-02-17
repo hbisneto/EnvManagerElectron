@@ -7,6 +7,25 @@ const fs = require('fs');
 app.disableHardwareAcceleration();
 
 let win;
+let splash;
+
+function createSplash() {
+    splash = new BrowserWindow({
+        width: 600,
+        height: 400,
+        frame: false,
+        alwaysOnTop: true,
+        transparent: true,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+        }
+    });
+
+    splash.loadFile('renderer/splash.html');
+    splash.center();
+    splash.setAlwaysOnTop(true, 'screen-saver');
+}
 
 function createWindow() {
     win = new BrowserWindow({
@@ -14,16 +33,62 @@ function createWindow() {
         minHeight: 600,
         width: 800,
         height: 800,
+        icon: path.join(__dirname, 'icon.png'),
+        show: false,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js')
         }
     });
 
     win.loadFile('renderer/index.html');
-    win.webContents.openDevTools();
+    win.webContents.openDevTools(); // Comment this line to disable DevTools on startup
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    createSplash();
+    createWindow();
+
+    let minimumTimePassed = false;
+    let windowIsReady = false;
+
+    const tryShowMain = () => {
+        if (minimumTimePassed && windowIsReady) {
+            if (splash && !splash.isDestroyed()) {
+                try {
+                    splash.close();
+                } catch (err) {
+                    console.warn('Erro ao fechar splash:', err);
+                }
+            }
+            if (win && !win.isDestroyed()) {
+                try {
+                    win.show();
+                } catch (err) {
+                    console.warn('Erro ao mostrar janela principal:', err);
+                }
+            }
+        }
+    };
+
+    setTimeout(() => {
+        minimumTimePassed = true;
+        tryShowMain();
+    }, 5000);
+
+    win.once('ready-to-show', () => {
+        windowIsReady = true;
+        tryShowMain();
+    });
+
+    app.once('before-quit', () => {
+        if (splash && !splash.isDestroyed()) {
+            splash.destroy();
+        }
+        if (win && !win.isDestroyed()) {
+            win.destroy();
+        }
+    });
+});
 
 const possiblePythonVersions = [
     'python',
@@ -293,7 +358,7 @@ cython_debug/
             console.log('.gitignore created at:', gitignorePath);
         }
 
-        sendProgress(10); // Início
+        sendProgress(10);
 
         const parts = python.split(' ');
         const cmd = parts[0];
@@ -340,7 +405,6 @@ cython_debug/
                 return;
             }
 
-            // Contar pacotes no requirements.txt (base)
             const reqContent = fs.readFileSync(requirementsPath, 'utf-8');
             const packages = reqContent.split('\n')
                 .map(line => line.trim())
@@ -355,7 +419,6 @@ cython_debug/
                 return;
             }
 
-            // Verificar se Git está instalado (para pacotes git+)
             exec('git --version', (gitErr) => {
                 if (gitErr) {
                     sendStatus('Git not found in system. Install Git to support GitHub packages (e.g., git+https://...).');
@@ -377,18 +440,16 @@ cython_debug/
                     const output = data.toString();
                     console.log('[PIP]', output);
 
-                    // Detectar Collecting (início de download/instalação de pacote)
                     const collectingMatch = output.match(/Collecting\s+(.+?)(?:\s|$)/);
                     if (collectingMatch) {
                         currentPackage = collectingMatch[1].trim();
                         installed++;
-                        // Avança progresso: 40% base + 60% dividido pelos pacotes (usa instalados como proxy se deps extras)
+
                         const progressInstallation = 40 + (60 * (installed / Math.max(totalPackages, installed)));
                         sendProgress(progressInstallation);
                         sendStatus(`Installing package ${installed}/${totalPackages}: ${currentPackage}...`);
                     }
 
-                    // Detectar sucesso final (força 100% se vir lista de installed)
                     if (output.includes('Successfully installed')) {
                         sendProgress(100);
                         sendStatus(`All dependencies installed successfully (${installed} packages processed)`);
@@ -399,7 +460,6 @@ cython_debug/
                     const errorOutput = data.toString();
                     console.error('[PIP STDERR]', errorOutput);
 
-                    // Ignora logs normais de pip para git clone (não é erro real)
                     if (!errorOutput.includes('Running command git clone')) {
                         sendStatus(`Warning/Error during installation: ${errorOutput}`);
                     }
