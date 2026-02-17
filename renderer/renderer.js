@@ -80,11 +80,42 @@ btn.onclick = () => {
     if (!venvName || !projectName || !projectLocation) {
         status.textContent = 'Please, fill in all required fields';
         status.hidden = false;
+        progressDiv.style.height = '0px';
+        progress.style.width = '0%';
+
+        if (projectName.trim()==''){
+            document.getElementById('projectName').classList.add('bg-danger', 'bg-opacity-25');
+        }else{
+            document.getElementById('projectName').classList.remove('bg-danger', 'bg-opacity-25');
+        }
+
+        if(projectLocation.trim()==''){
+            document.getElementById('projectLocation').classList.add('bg-danger', 'bg-opacity-25');
+        }else{
+            document.getElementById('projectLocation').classList.remove('bg-danger', 'bg-opacity-25');
+        }
+
+        if (venvName.trim()==''){
+            document.getElementById('venvName').classList.add('bg-danger', 'bg-opacity-25');
+        }else{
+            document.getElementById('venvName').classList.remove('bg-danger', 'bg-opacity-25');
+        }   
+        setTimeout(() => {
+            status.hidden = true;
+        }, 3000);
         return;
     }
 
+    if(requirementsPath.trim()==''){
+        dependenciesSummary.innerHTML = `<small class="text-body-secondary">Choose a requirements.txt file</small>`;
+    }
+
     progress.style.width = '0%';
+    status.hidden = false;
     status.textContent = 'Creating project...';
+    document.getElementById('projectName').classList.remove('bg-danger', 'bg-opacity-25');
+    document.getElementById('projectLocation').classList.remove('bg-danger', 'bg-opacity-25');
+    document.getElementById('venvName').classList.remove('bg-danger', 'bg-opacity-25');
 
     window.api.createVenv({
         python,

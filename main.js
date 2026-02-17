@@ -331,11 +331,11 @@ cython_debug/
                 return;
             }
 
-            sendProgress(40); // Venv pronto
+            sendProgress(40);
 
             if (!requirementsPath || !fs.existsSync(requirementsPath)) {
                 sendProgress(100);
-                sendStatus('Venv created successfully (no dependencies to install)');
+                sendStatus('Venv created successfully (No dependencies to install)');
                 event.sender.send('venv-done', true);
                 return;
             }
