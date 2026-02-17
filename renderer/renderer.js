@@ -7,85 +7,107 @@ const projectLocationInput = document.getElementById('projectLocation');
 const projectLocationBtn = document.getElementById('projectLocationBtn');
 const projectNameInput = document.getElementById('projectName');
 const summaryText = document.getElementById('summaryDiv');
+const requirementsInput = document.getElementById('requirementsFilePath');
+const requirementsBtn = document.getElementById('selectRequirementsFileBtn');
+const dependenciesSummary = document.getElementById('dependenciesSummary');
 
-function atualizarResumo() {
+function updateSummary() {
     const base = projectLocationInput.value;
-    const nome = projectNameInput.value;
+    const name = projectNameInput.value;
 
-    if (!base || !nome) return;
+    if (!base || !name) return;
 
-    let caminho = base;
-    if (!caminho.endsWith('/') && !caminho.endsWith('\\')) {
-        caminho += '/';
+    let path = base;
+    if (!path.endsWith('/') && !path.endsWith('\\')) {
+        path += '/';
     }
 
-    const finalPath = caminho + nome;
+    const finalPath = path + name;
 
     summaryText.innerHTML =
         `<small class="text-body-secondary">Project will be created in "${finalPath}"</small>`;
 }
 
 projectLocationBtn.onclick = async () => {
-    const pasta = await window.api.selecionarPastaProjeto();
-    if (pasta) {
-        projectLocationInput.value = pasta;
-        atualizarResumo();
+    const folder = await window.api.selecProjectFolder();
+    if (folder) {
+        projectLocationInput.value = folder;
+        updateSummary();
     }
 };
 
-projectNameInput.addEventListener('input', atualizarResumo);
-projectLocationInput.addEventListener('input', atualizarResumo);
+requirementsBtn.onclick = async () => {
+    const file = await window.api.selectRequirementsFile();
+    if (file) {
+        requirementsInput.value = file;
 
-async function carregarPythons() {
-    const lista = await window.api.getPythons();
+        // Contar pacotes para summary
+        const response = await fetch(`file://${file}`);
+        const text = await response.text();
+        const packages = text.split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith('#') && !line.startsWith(';'));
+        dependenciesSummary.innerHTML = `<small class="text-body-secondary">${packages.length} dependencies found in requirements.txt</small>`;
+    }
+};
+
+projectNameInput.addEventListener('input', updateSummary);
+projectLocationInput.addEventListener('input', updateSummary);
+
+async function loadPythonVersions() {
+    const versionList = await window.api.getPythons();
 
     select.innerHTML = '';
 
-    lista.forEach(py => {
+    versionList.forEach(py => {
         const option = document.createElement('option');
-        option.value = py.comando;
-        option.textContent = `${py.versao} (${py.comando})`;
+        option.value = py.command;
+        option.textContent = `${py.version} (${py.command})`;
         select.appendChild(option);
     });
 }
 
 btn.onclick = () => {
     const python = select.value;
-    const nomeVenv = document.getElementById('venvName').value;
+    const venvName = document.getElementById('venvName').value;
     const projectName = document.getElementById('projectName').value;
     const projectLocation = document.getElementById('projectLocation').value;
     const createGitignore = document.getElementById('switchCheckDefault').checked;
-    // const requirementsPath = requirementsInput.value;
-
+    const requirementsPath = requirementsInput.value;
 
     progressDiv.style.height = '10px';
 
-    if (!nomeVenv || !projectName || !projectLocation) {
-        status.textContent = 'Preencha todos os campos';
+    if (!venvName || !projectName || !projectLocation) {
+        status.classList.add('text-center');
+        status.textContent = 'Please, fill in all required fields';
+        status.hidden = false;
         return;
     }
 
-    progress.style.width = '10%';
-    status.textContent = 'Criando projeto...';
+    progress.style.width = '0%';
+    status.classList.remove('text-center');
+    status.textContent = 'Creating project...';
 
-    window.api.criarVenv({
+    window.api.createVenv({
         python,
-        nomeVenv,
+        venvName,
         projectName,
         projectLocation,
         createGitignore,
-        // requirementsPath
+        requirementsPath
     });
 };
-
 
 window.api.onProgress((value) => {
     progress.style.width = value + '%';
 });
 
+window.api.onStatus((text) => {
+    status.textContent = text;
+});
+
 window.api.onDone((ok) => {
     if (ok) {
-        status.textContent = 'Venv criada com sucesso!';
         progress.classList.remove('bg-danger');
         progress.classList.add('bg-success');
         
@@ -93,11 +115,12 @@ window.api.onDone((ok) => {
             progressDiv.style.height = '0px';
             progress.style.width = '0%';
             progress.classList.remove('bg-success');
+            status.hidden = true;
         }, 1000);
     } else {
-        status.textContent = 'Erro ao criar a venv';
+        status.textContent = 'Process error';
         progress.classList.add('bg-danger');
     }
 });
 
-carregarPythons();
+loadPythonVersions();

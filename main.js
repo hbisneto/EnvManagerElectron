@@ -23,7 +23,7 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
-const possiveisPythons = [
+const possiblePythonVersions = [
     'python',
     'python3',
     'python3.8',
@@ -40,58 +40,62 @@ const possiveisPythons = [
     'py -3.12'
 ];
 
-function verificarComando(cmd) {
-    console.log('Testando:', cmd);
+function verifyCommand(cmd) {
+    console.log('Testing:', cmd);
 
     return new Promise((resolve) => {
         exec(`${cmd} --version`, (err, stdout, stderr) => {
             if (err) {
-                console.log(`Não encontrado: ${cmd}`);
+                console.log(`Not found: ${cmd}`);
                 return resolve(null);
             }
 
-            const versao = (stdout || stderr).trim();
+            const version = (stdout || stderr).trim();
 
-            if (!versao.startsWith('Python 3')) {
-                console.log(`Ignorado (não é Python 3): ${versao}`);
+            if (!version.startsWith('Python 3')) {
+                console.log(`Ignored (not Python 3): ${version}`);
                 return resolve(null);
             }
 
-            console.log(`Encontrado: ${cmd} → ${versao}`);
-            resolve({ comando: cmd, versao });
+            console.log(`Found: ${cmd} → ${version}`);
+            resolve({ command: cmd, version });
         });
     });
 }
 
-async function detectarPythons() {
-    console.log('Detectando versões do Python...');
-    const resultados = await Promise.all(
-        possiveisPythons.map(verificarComando)
+async function detectPythonVersions() {
+    console.log('Detecting Python versions...');
+    const results = await Promise.all(
+        possiblePythonVersions.map(verifyCommand)
     );
 
-    const lista = resultados.filter(Boolean);
-    const unicos = [];
-    const versoes = new Set();
+    const versionList = results.filter(Boolean);
+    const unique = [];
+    const versions = new Set();
 
-    for (const py of lista) {
-        if (!versoes.has(py.versao)) {
-            versoes.add(py.versao);
-            unicos.push(py);
+    for (const py of versionList) {
+        if (!versions.has(py.version)) {
+            versions.add(py.version);
+            unique.push(py);
         }
     }
 
-    console.log('Pythons detectados:', unicos);
-    return unicos;
+    console.log('Detected Python versions:', unique);
+    return unique;
 }
 
 ipcMain.handle('get-pythons', async () => {
-    return await detectarPythons();
+    return await detectPythonVersions();
 });
 
-ipcMain.on('criar-venv', (event, dados) => {
-    const { python, nomeVenv, projectName, projectLocation, createGitignore } = dados;
+ipcMain.on('create-venv', (event, data) => {
+    const { python, venvName, projectName, projectLocation, createGitignore, requirementsPath } = data;
 
     const projectPath = path.join(projectLocation, projectName);
+    const venvPath = path.join(projectPath, venvName);
+    const pipPath = process.platform === 'win32' 
+        ? path.join(venvPath, 'Scripts', 'pip.exe') 
+        : path.join(venvPath, 'bin', 'pip');
 
     function sendStatus(text) {
         console.log(text);
@@ -102,12 +106,11 @@ ipcMain.on('criar-venv', (event, dados) => {
         event.sender.send('venv-progress', value);
     }
 
-
-    console.log('Projeto será criado em:', projectPath);
+    console.log('Project will be created in:', projectPath);
 
     try {
         if (!fs.existsSync(projectPath)) {
-            console.log('Criando pasta do projeto...');
+            console.log('Creating project folder...');
             fs.mkdirSync(projectPath, { recursive: true });
         }
 
@@ -116,7 +119,7 @@ ipcMain.on('criar-venv', (event, dados) => {
 
             const gitignoreContent = `
 # EnvManager Suggested .gitignore content
-${nomeVenv}/
+${venvName}/
 
 .DS_STORE
 *.pyc
@@ -285,58 +288,161 @@ cython_debug/
 `.trim();
 
             fs.writeFileSync(gitignorePath, gitignoreContent);
-            console.log('.gitignore criado');
+            console.log('.gitignore created at:', gitignorePath);
         }
 
-        event.sender.send('venv-progress', 20);
+        sendProgress(10); // Início
 
-        const partes = python.split(' ');
-        const cmd = partes[0];
-        const args = partes.slice(1);
+        const parts = python.split(' ');
+        const cmd = parts[0];
+        const args = parts.slice(1);
 
-        console.log(`Criando venv: ${nomeVenv} com ${python}`);
+        console.log(`Creating venv: ${venvName} with ${python}`);
 
-        const processo = spawn(
+        const processVenv = spawn(
             cmd,
-            [...args, '-m', 'venv', nomeVenv],
+            [...args, '-m', 'venv', venvName],
             { cwd: projectPath }
         );
 
-        processo.stdout.on('data', (data) => {
+        processVenv.stdout.on('data', (data) => {
             console.log('[PYTHON]', data.toString());
-            event.sender.send('venv-progress', 60);
+            sendProgress(20);
         });
 
-        processo.stderr.on('data', (data) => {
+        processVenv.stderr.on('data', (data) => {
             console.error('[PYTHON ERROR]', data.toString());
         });
 
-        processo.on('error', (err) => {
-            console.error('Erro ao iniciar processo:', err);
+        processVenv.on('error', (err) => {
+            console.error('Error starting venv process:', err);
+            sendStatus('Error creating venv');
             event.sender.send('venv-done', false);
         });
 
-        processo.on('close', (code) => {
-            console.log('Processo finalizado com código:', code);
+        processVenv.on('close', (code) => {
+            console.log('Created venv with code:', code);
 
-            if (code === 0) {
-                event.sender.send('venv-progress', 100);
-                event.sender.send('venv-done', true);
-            } else {
+            if (code !== 0) {
+                sendStatus('Error creating venv');
                 event.sender.send('venv-done', false);
+                return;
             }
+
+            sendProgress(40); // Venv pronto
+
+            if (!requirementsPath || !fs.existsSync(requirementsPath)) {
+                sendProgress(100);
+                sendStatus('Venv created successfully (no dependencies to install)');
+                event.sender.send('venv-done', true);
+                return;
+            }
+
+            // Contar pacotes no requirements.txt (base)
+            const reqContent = fs.readFileSync(requirementsPath, 'utf-8');
+            const packages = reqContent.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#') && !line.startsWith(';'));
+            let totalPackages = packages.length;
+            let installed = 0;
+
+            if (totalPackages === 0) {
+                sendProgress(100);
+                sendStatus('Venv created, but requirements.txt empty.');
+                event.sender.send('venv-done', true);
+                return;
+            }
+
+            // Verificar se Git está instalado (para pacotes git+)
+            exec('git --version', (gitErr) => {
+                if (gitErr) {
+                    sendStatus('Git not found in system. Install Git to support GitHub packages (e.g., git+https://...).');
+                    event.sender.send('venv-done', false);
+                    return;
+                }
+
+                sendStatus(`Installing dependencies (0/${totalPackages})...`);
+
+                const processPip = spawn(
+                    pipPath,
+                    ['install', '-r', requirementsPath],
+                    { cwd: projectPath }
+                );
+
+                let currentPackage = '';
+
+                processPip.stdout.on('data', (data) => {
+                    const output = data.toString();
+                    console.log('[PIP]', output);
+
+                    // Detectar Collecting (início de download/instalação de pacote)
+                    const collectingMatch = output.match(/Collecting\s+(.+?)(?:\s|$)/);
+                    if (collectingMatch) {
+                        currentPackage = collectingMatch[1].trim();
+                        installed++;
+                        // Avança progresso: 40% base + 60% dividido pelos pacotes (usa instalados como proxy se deps extras)
+                        const progressInstallation = 40 + (60 * (installed / Math.max(totalPackages, installed)));
+                        sendProgress(progressInstallation);
+                        sendStatus(`Installing package ${installed}/${totalPackages}: ${currentPackage}...`);
+                    }
+
+                    // Detectar sucesso final (força 100% se vir lista de installed)
+                    if (output.includes('Successfully installed')) {
+                        sendProgress(100);
+                        sendStatus(`All dependencies installed successfully (${installed} packages processed)`);
+                    }
+                });
+
+                processPip.stderr.on('data', (data) => {
+                    const errorOutput = data.toString();
+                    console.error('[PIP STDERR]', errorOutput);
+
+                    // Ignora logs normais de pip para git clone (não é erro real)
+                    if (!errorOutput.includes('Running command git clone')) {
+                        sendStatus(`Warning/Error during installation: ${errorOutput}`);
+                    }
+                });
+
+                processPip.on('error', (err) => {
+                    console.error('Error starting pip:', err);
+                    sendStatus('Error installing dependencies');
+                    event.sender.send('venv-done', false);
+                });
+
+                processPip.on('close', (code) => {
+                    console.log('Installation finished with code:', code);
+                    if (code === 0) {
+                        sendProgress(100);
+                        sendStatus(`All dependencies installed successfully (${totalPackages} packages processed)`);
+                        event.sender.send('venv-done', true);
+                    } else {
+                        sendStatus('Error installing dependencies');
+                        event.sender.send('venv-done', false);
+                    }
+                });
+            });
         });
 
     } catch (err) {
-        console.error('Erro ao criar pasta do projeto:', err);
+        console.error('Error creating project folder:', err);
+        sendStatus('Error creating project folder');
         event.sender.send('venv-done', false);
     }
 });
 
-
 ipcMain.handle('select-project-folder', async () => {
     const result = await dialog.showOpenDialog({
         properties: ['openDirectory']
+    });
+
+    if (result.canceled) return null;
+    return result.filePaths[0];
+});
+
+ipcMain.handle('select-requirements-file', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'Text Files', extensions: ['txt'] }]
     });
 
     if (result.canceled) return null;
