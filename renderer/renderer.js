@@ -75,17 +75,15 @@ btn.onclick = () => {
     const createGitignore = document.getElementById('switchCheckDefault').checked;
     const requirementsPath = requirementsInput.value;
 
-    progressDiv.style.height = '10px';
+    progressDiv.style.height = '1px';
 
     if (!venvName || !projectName || !projectLocation) {
-        status.classList.add('text-center');
         status.textContent = 'Please, fill in all required fields';
         status.hidden = false;
         return;
     }
 
     progress.style.width = '0%';
-    status.classList.remove('text-center');
     status.textContent = 'Creating project...';
 
     window.api.createVenv({
@@ -116,7 +114,7 @@ window.api.onDone((ok) => {
             progress.style.width = '0%';
             progress.classList.remove('bg-success');
             status.hidden = true;
-        }, 1000);
+        }, 5000);
     } else {
         status.textContent = 'Process error';
         progress.classList.add('bg-danger');
