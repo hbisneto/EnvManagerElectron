@@ -156,7 +156,7 @@ ipcMain.handle('get-pythons', async () => {
 });
 
 ipcMain.on('create-venv', (event, data) => {
-    const { python, venvName, projectName, projectLocation, createGitignore, requirementsPath } = data;
+    const { python, venvName, projectName, projectLocation, createGitignore, requirementsPath, updatePip } = data;
 
     const projectPath = path.join(projectLocation, projectName);
     const venvPath = path.join(projectPath, venvName);
@@ -398,91 +398,135 @@ cython_debug/
 
             sendProgress(40);
 
-            if (!requirementsPath || !fs.existsSync(requirementsPath)) {
-                sendProgress(100);
-                sendStatus('Venv created successfully (No dependencies to install)');
-                event.sender.send('venv-done', true);
-                return;
-            }
-
-            const reqContent = fs.readFileSync(requirementsPath, 'utf-8');
-            const packages = reqContent.split('\n')
-                .map(line => line.trim())
-                .filter(line => line && !line.startsWith('#') && !line.startsWith(';'));
-            let totalPackages = packages.length;
-            let installed = 0;
-
-            if (totalPackages === 0) {
-                sendProgress(100);
-                sendStatus('Venv created, but requirements.txt empty.');
-                event.sender.send('venv-done', true);
-                return;
-            }
-
-            exec('git --version', (gitErr) => {
-                if (gitErr) {
-                    sendStatus('Git not found in system. Install Git to support GitHub packages (e.g., git+https://...).');
-                    event.sender.send('venv-done', false);
+            const upgradePipIfRequested = (callback) => {
+                if (!updatePip) {
+                    callback();
                     return;
                 }
 
-                sendStatus(`Installing dependencies (0/${totalPackages})...`);
+                sendStatus('Updating pip...');
+                sendProgress(45);
 
-                const processPip = spawn(
+                const pipUpgrade = spawn(
                     pipPath,
-                    ['install', '-r', requirementsPath],
+                    ['install', '--upgrade', 'pip'],
                     { cwd: projectPath }
                 );
 
-                let currentPackage = '';
-
-                processPip.stdout.on('data', (data) => {
-                    const output = data.toString();
-                    console.log('[PIP]', output);
-
-                    const collectingMatch = output.match(/Collecting\s+(.+?)(?:\s|$)/);
-                    if (collectingMatch) {
-                        currentPackage = collectingMatch[1].trim();
-                        installed++;
-
-                        const progressInstallation = 40 + (60 * (installed / Math.max(totalPackages, installed)));
-                        sendProgress(progressInstallation);
-                        sendStatus(`Installing package ${installed}/${totalPackages}: ${currentPackage}...`);
-                    }
-
-                    if (output.includes('Successfully installed')) {
-                        sendProgress(100);
-                        sendStatus(`All dependencies installed successfully (${installed} packages processed)`);
-                    }
+                pipUpgrade.stdout.on('data', (data) => {
+                    console.log('[PIP UPGRADE]', data.toString());
                 });
 
-                processPip.stderr.on('data', (data) => {
-                    const errorOutput = data.toString();
-                    console.error('[PIP STDERR]', errorOutput);
-
-                    if (!errorOutput.includes('Running command git clone')) {
-                        sendStatus(`Warning/Error during installation: ${errorOutput}`);
-                    }
+                pipUpgrade.stderr.on('data', (data) => {
+                    console.error('[PIP UPGRADE ERROR]', data.toString());
                 });
 
-                processPip.on('error', (err) => {
-                    console.error('Error starting pip:', err);
-                    sendStatus('Error installing dependencies');
-                    event.sender.send('venv-done', false);
-                });
-
-                processPip.on('close', (code) => {
-                    console.log('Installation finished with code:', code);
-                    if (code === 0) {
-                        sendProgress(100);
-                        sendStatus(`All dependencies installed successfully (${totalPackages} packages processed)`);
-                        event.sender.send('venv-done', true);
+                pipUpgrade.on('close', (upgradeCode) => {
+                    if (upgradeCode === 0) {
+                        sendStatus('pip updated successfully');
                     } else {
+                        sendStatus('Warning: pip update failed, continuing anyway');
+                    }
+                    sendProgress(50);
+                    callback();
+                });
+
+                pipUpgrade.on('error', (err) => {
+                    console.error('Error running pip upgrade:', err);
+                    sendStatus('Warning: could not update pip');
+                    callback();
+                });
+            };
+
+            const continueWithDependencies = () => {
+                if (!requirementsPath || !fs.existsSync(requirementsPath)) {
+                    sendProgress(100);
+                    sendStatus('Venv created successfully (No dependencies to install)');
+                    event.sender.send('venv-done', true);
+                    return;
+                }
+
+                const reqContent = fs.readFileSync(requirementsPath, 'utf-8');
+                const packages = reqContent.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line && !line.startsWith('#') && !line.startsWith(';'));
+                let totalPackages = packages.length;
+                let installed = 0;
+
+                if (totalPackages === 0) {
+                    sendProgress(100);
+                    sendStatus('Venv created, but requirements.txt empty.');
+                    event.sender.send('venv-done', true);
+                    return;
+                }
+
+                exec('git --version', (gitErr) => {
+                    if (gitErr) {
+                        sendStatus('Git not found in system. Install Git to support GitHub packages (e.g., git+https://...).');
+                        event.sender.send('venv-done', false);
+                        return;
+                    }
+
+                    sendStatus(`Installing dependencies (0/${totalPackages})...`);
+
+                    const processPip = spawn(
+                        pipPath,
+                        ['install', '-r', requirementsPath],
+                        { cwd: projectPath }
+                    );
+
+                    let currentPackage = '';
+
+                    processPip.stdout.on('data', (data) => {
+                        const output = data.toString();
+                        console.log('[PIP]', output);
+
+                        const collectingMatch = output.match(/Collecting\s+(.+?)(?:\s|$)/);
+                        if (collectingMatch) {
+                            currentPackage = collectingMatch[1].trim();
+                            installed++;
+
+                            const progressInstallation = 40 + (60 * (installed / Math.max(totalPackages, installed)));
+                            sendProgress(progressInstallation);
+                            sendStatus(`Installing package ${installed}/${totalPackages}: ${currentPackage}...`);
+                        }
+
+                        if (output.includes('Successfully installed')) {
+                            sendProgress(100);
+                            sendStatus(`All dependencies installed successfully (${installed} packages processed)`);
+                        }
+                    });
+
+                    processPip.stderr.on('data', (data) => {
+                        const errorOutput = data.toString();
+                        console.error('[PIP STDERR]', errorOutput);
+
+                        if (!errorOutput.includes('Running command git clone')) {
+                            sendStatus(`Warning/Error during installation: ${errorOutput}`);
+                        }
+                    });
+
+                    processPip.on('error', (err) => {
+                        console.error('Error starting pip:', err);
                         sendStatus('Error installing dependencies');
                         event.sender.send('venv-done', false);
-                    }
+                    });
+
+                    processPip.on('close', (code) => {
+                        console.log('Installation finished with code:', code);
+                        if (code === 0) {
+                            sendProgress(100);
+                            sendStatus(`All dependencies installed successfully (${totalPackages} packages processed)`);
+                            event.sender.send('venv-done', true);
+                        } else {
+                            sendStatus('Error installing dependencies');
+                            event.sender.send('venv-done', false);
+                        }
+                    });
                 });
-            });
+            };
+
+            upgradePipIfRequested(continueWithDependencies);
         });
 
     } catch (err) {
