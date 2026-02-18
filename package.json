@@ -1,6 +1,6 @@
 {
   "name": "envmanager",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "EnvManager is a user-friendly application that allows you to create, edit, and manage your environment variables in a simple and efficient way.",
   "author": {
     "name": "Heitor Bisneto",
