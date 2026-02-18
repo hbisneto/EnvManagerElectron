@@ -1,6 +1,6 @@
 {
   "name": "envmanager",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "EnvManager is a user-friendly application that allows you to create, edit, and manage your environment variables in a simple and efficient way.",
   "author": {
     "name": "Heitor Bisneto",
@@ -25,8 +25,14 @@
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64", "universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64", "universal"]
+        }
       ],
       "icon": "assets/icon.icns"
     },
