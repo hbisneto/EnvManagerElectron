@@ -1,8 +1,10 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
-const { exec, spawn } = require('child_process');
 const { dialog } = require('electron');
 const fs = require('fs');
+const { exec, spawn } = require('child_process');
+const { setAppMenu } = require('./menubar');
 
 app.disableHardwareAcceleration();
 
@@ -41,7 +43,10 @@ function createWindow() {
     });
 
     win.loadFile('renderer/index.html');
-    win.webContents.openDevTools(); // Comment this line to disable DevTools on startup
+    //win.webContents.openDevTools(); // Comment this line to disable DevTools on startup
+
+    setAppMenu(win);
+    
 }
 
 app.whenReady().then(() => {
@@ -398,14 +403,15 @@ cython_debug/
 
             sendProgress(40);
 
+            // Aux function to upgrade pip if requested, then call the callback to continue with dependencies
             const upgradePipIfRequested = (callback) => {
                 if (!updatePip) {
-                    callback();
+                    callback(); // Continue without upgrading pip
                     return;
                 }
 
                 sendStatus('Updating pip...');
-                sendProgress(45);
+                sendProgress(45); // Small progress increase for pip upgrade step
 
                 const pipUpgrade = spawn(
                     pipPath,
@@ -427,17 +433,18 @@ cython_debug/
                     } else {
                         sendStatus('Warning: pip update failed, continuing anyway');
                     }
-                    sendProgress(50);
+                    sendProgress(50); // Ready to continue with dependencies installation
                     callback();
                 });
 
                 pipUpgrade.on('error', (err) => {
                     console.error('Error running pip upgrade:', err);
                     sendStatus('Warning: could not update pip');
-                    callback();
+                    callback(); // Continues with dependencies even if pip upgrade fails
                 });
             };
 
+            // Main logic to install dependencies from requirements.txt, called after pip upgrade if requested
             const continueWithDependencies = () => {
                 if (!requirementsPath || !fs.existsSync(requirementsPath)) {
                     sendProgress(100);
@@ -553,4 +560,12 @@ ipcMain.handle('select-requirements-file', async () => {
 
     if (result.canceled) return null;
     return result.filePaths[0];
+});
+
+ipcMain.handle('get-app-version', async () => {
+    return app.getVersion();
+});
+
+ipcMain.on('restart-app', () => {
+    autoUpdater.quitAndInstall();
 });

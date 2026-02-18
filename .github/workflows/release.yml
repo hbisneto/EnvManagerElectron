@@ -1,0 +1,65 @@
+name: Build and Release Electron App
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger tags as v0.0.1
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # Use the same local Node version from project
+
+      - name: Install dependencies
+        run: npm ci  # Faster than npm install
+
+      - name: Build app
+        run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Automatic for publishing assets
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}-build
+          path: dist/*
+          if-no-files-found: error  # Fails if no files are found
+
+  release:
+    needs: build  # Runs after all build jobs complete
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artifacts (junta todos em uma pasta)
+        run: |
+          mkdir -p release-files
+          find dist -type f -exec mv {} release-files/ \;
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
+          generate_release_notes: true  # Generate automatic notes from commit/PR
+          # body_path: CHANGELOG.md  # Uncomment for custom changelog
+          draft: true  # Direct publish (change to true for draft release)
+          prerelease: false  # Change to true for pre-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
