@@ -10,6 +10,7 @@ app.disableHardwareAcceleration();
 
 let win;
 let splash;
+let aboutWindow;
 
 function createSplash() {
     splash = new BrowserWindow({
@@ -27,6 +28,34 @@ function createSplash() {
     splash.loadFile('renderer/splash.html');
     splash.center();
     splash.setAlwaysOnTop(true, 'screen-saver');
+}
+
+function createAboutWindow() {
+    aboutWindow = new BrowserWindow({
+        width: 400,
+        height: 300,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        parent: win,
+        modal: true,
+        show: false,
+        icon: path.join(__dirname, 'assets/icon.png'),
+        webPreferences: {
+            preload: path.join(__dirname, 'renderer/preload-about.js')
+        }
+    });
+
+    aboutWindow.loadFile('renderer/about.html');
+    aboutWindow.once('ready-to-show', () => {
+        aboutWindow.show();
+    });
+
+    aboutWindow.on('closed', () => {
+        aboutWindow = null;
+    });
+
+    autoUpdater.checkForUpdates();
 }
 
 function createWindow() {
@@ -567,5 +596,43 @@ ipcMain.handle('get-app-version', async () => {
 });
 
 ipcMain.on('restart-app', () => {
+    console.log('Restarting app to apply update...');
     autoUpdater.quitAndInstall();
 });
+
+ipcMain.on('close-about-window', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+        window.close();
+    }
+});
+
+ipcMain.on('open-about-window', () => {
+    if (!aboutWindow) {
+        createAboutWindow();
+    } else {
+        aboutWindow.focus();
+    }
+});
+
+
+autoUpdater.on('checking-for-update', () => {
+    aboutWindow?.webContents.send('update-status', 'Checking for updates...');
+});
+
+autoUpdater.on('update-available', () => {
+    aboutWindow?.webContents.send('update-status', 'Update available. Downloading...');
+});
+
+autoUpdater.on('update-not-available', () => {
+    aboutWindow?.webContents.send('update-status', 'Application is up to date.');
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+    aboutWindow?.webContents.send('update-progress', progressObj.percent);
+});
+
+autoUpdater.on('update-downloaded', () => {
+    aboutWindow?.webContents.send('update-downloaded');
+});
+

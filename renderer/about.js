@@ -1,33 +1,59 @@
-console.log('about.js carregado com sucesso');
-console.log('window.aboutApi existe?', !!window.aboutApi);
+document.addEventListener('DOMContentLoaded', async () => {
 
-const api = window.aboutApi;
+    const versionSpan = document.getElementById('version');
+    const statusText = document.getElementById('update-status');
+    const progressDiv = document.getElementById('progressDiv');
+    const progressBar = document.getElementById('progressBar');
+    const progressLabel = document.getElementById('updateProgressLabel');
+    const restartBtn = document.getElementById('restartBtn');
+    const closeBtn = document.getElementById('closeBtn');
 
-// Show version
-api.onSetVersion((version) => {
-    console.log('Received version:', version);
-    document.getElementById('version').textContent = version || 'Unknown';
+    // Mostrar versão
+    const version = await window.aboutApi.getAppVersion();
+    versionSpan.innerText = version;
+
+    // Botão Close
+    closeBtn.addEventListener('click', () => {
+        window.aboutApi.requestClose();
+    });
+
+    // Botão Restart
+    restartBtn.addEventListener('click', () => {
+        window.aboutApi.requestRestart();
+    });
+
+    // STATUS
+    window.aboutApi.onUpdateStatus((text) => {
+        statusText.innerText = text;
+
+        if (text.includes('up to date')) {
+            statusText.className = 'fw-semibold text-success';
+            progressDiv.style.display = 'none';
+            progressLabel.style.display = 'none';
+        }
+
+        if (text.includes('available')) {
+            statusText.className = 'fw-semibold text-primary';
+            progressDiv.style.display = 'block';
+        }
+    });
+
+    // PROGRESSO
+    window.aboutApi.onUpdateProgress((percent) => {
+        progressDiv.style.display = 'block';
+        progressLabel.style.display = 'block';
+
+        progressBar.style.width = `${percent}%`;
+        progressBar.innerText = `${Math.floor(percent)}%`;
+    });
+
+    // DOWNLOAD FINALIZADO
+    window.aboutApi.onUpdateDownloaded(() => {
+        statusText.innerText = "Update downloaded. Restart to apply.";
+        statusText.className = 'fw-semibold text-success';
+
+        progressBar.classList.remove('progress-bar-animated');
+        restartBtn.style.display = 'inline-block';
+        closeBtn.style.display = 'none';
+    });
 });
-
-// Update status
-api.onUpdateStatus((text) => {
-    document.getElementById('update-status').textContent = text;
-});
-
-// Download progress
-api.onUpdateProgress((percent) => {
-    document.getElementById('progressBar').style.width = `${percent}%`;
-    document.getElementById('progressDiv').style.display = 'block';
-});
-
-// Download complete
-api.onUpdateDownloaded(() => {
-    document.getElementById('update-status').textContent = 'Update downloaded. Restart now?';
-    document.getElementById('progressBar').style.width = '100%';
-    document.getElementById('restartBtn').style.display = 'block';
-});
-
-// Restart button
-document.getElementById('restartBtn').onclick = () => {
-    api.requestRestart();
-};

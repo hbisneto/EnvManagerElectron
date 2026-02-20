@@ -8,11 +8,32 @@
 <body class="p-3">
     <h4>About EnvManager</h4>
     <p>Version: <span id="version">Loading...</span></p>
-    <p id="update-status">Checking for updates...</p>
-    <div class="progress mt-3" id="progressDiv" style="height: 10px;">
-        <div id="progressBar" class="progress-bar" style="width: 0%;"></div>
+    <p id="update-status" class="fw-semibold text-muted">
+    Checking for updates...
+    </p>
+
+    <div class="progress mt-3" id="progressDiv" style="height: 5px; display: none;">
+        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+            role="progressbar"
+            style="width: 0%">
+        </div>
     </div>
-    <button id="restartBtn" class="btn btn-primary mt-3" style="display: none;">Restart Now</button>
+
+    <div id="updateProgressLabel" class="form-text text-muted" style="display: none;">
+    </div>
+
+    
+    
+    <div class="position-fixed bottom-0 start-0 w-100 bg-body border-top">
+        <div class="container-fluid p-3">
+            <!-- Button area -->
+            <div class="d-flex justify-content-end">
+                <button id="restartBtn" class="btn btn-primary" style="display: none;">Restart Now</button>
+                <button id="closeBtn" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+    
     <script src="about.js"></script>
 </body>
 </html>

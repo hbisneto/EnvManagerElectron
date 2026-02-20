@@ -1,0 +1,5 @@
+provider: github
+owner: hbisneto
+repo: EnvManagerElectron
+private: false
+releaseType: release
