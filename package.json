@@ -3,7 +3,7 @@
   "version": "0.0.7",
   "description": "EnvManager is a user-friendly application that allows you to create, edit, and manage your environment variables in a simple and efficient way.",
   "author": {
-    "name": "Heitor Bisneto",
+    "name": "Bisneto Inc.",
     "email": "heitor.bardemaker@live.com"
   },
   "main": "main.js",
