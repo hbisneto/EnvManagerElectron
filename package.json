@@ -10,6 +10,10 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --publish=never",
+    "build:dir": "electron-builder --dir",
+    "build:win": "electron-builder --win --dir",
+    "build:mac": "electron-builder --mac --dir",
+    "build:linux": "electron-builder --linux --dir",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
