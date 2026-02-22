@@ -1,0 +1,18 @@
+Project will be created in: /home/heitor/Documents/EnvManager/App
+Creating project folder...
+.gitignore created at: /home/heitor/Documents/EnvManager/App/.gitignore
+Creating venv: venv with python3
+[PYTHON] The virtual environment was not created successfully because ensurepip is not
+available.  On Debian/Ubuntu systems, you need to install the python3-venv
+package using the following command.
+
+    apt install python3.10-venv
+
+You may need to use sudo with that command.  After installing the python3-venv
+package, recreate your virtual environment.
+
+Failing command: /home/heitor/Documents/EnvManager/App/venv/bin/python3
+
+
+Created venv with code: 1
+Error creating venv
