@@ -13,8 +13,8 @@ let splash;
 
 function createSplash() {
     splash = new BrowserWindow({
-        width: 600,
-        height: 400,
+        width: 800,
+        height: 600,
         frame: false,
         alwaysOnTop: true,
         transparent: true,
@@ -378,7 +378,7 @@ cython_debug/
         );
 
         processVenv.stdout.on('data', (data) => {
-            console.log('[PYTHON]', data.toString());
+            console.log('[PYTHON]:', data.toString());
             sendProgress(20);
         });
 
